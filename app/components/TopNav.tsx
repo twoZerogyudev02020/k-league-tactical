@@ -50,6 +50,7 @@ export default function TopNav() {
           <Link href="/matchup" style={linkStyle("/matchup")}>Matchup</Link>
           <Link href="/impact" style={linkStyle("/impact")}>Impact</Link>
           <Link href="/validation" style={linkStyle("/validation")}>Validation</Link>
+          <Link href="/simulator" style={linkStyle("/simulator")}>Simulator</Link>
         </div>
       </div>
     </div>
