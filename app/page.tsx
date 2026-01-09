@@ -141,13 +141,13 @@ const CLUSTER_META: Record<
 /** ✅ 로고 경로: public/logos/{team}.png */
 function teamLogoPath(team: string) {
   const map: Record<string, string> = {
-    "fc서울": "fc서울",
-    "강원fc": "강원fc",
-    "광주fc": "광주fc",
+    "FC서울": "fc서울",
+    "강원FC": "강원fc",
+    "광주FC": "광주fc",
     "김천 상무 프로축구단": "김천상무",
-    "대구fc": "대구fc",
+    "대구FC": "대구fc",
     "대전 하나 시티즌": "대전하나시티즌",
-    "수원fc": "수원fc",
+    "수원FC": "수원fc",
     "울산 HD FC": "울산HD",
     "인천 유나이티드": "인천유나이티드",
     "전북 현대 모터스": "전북현대",
