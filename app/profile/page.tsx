@@ -1,6 +1,5 @@
 "use client";
 
-import TopNav from "../components/TopNav";
 import { useEffect, useMemo, useState } from "react";
 import {
   ResponsiveContainer,
@@ -178,18 +177,15 @@ export default function ProfilePage() {
 
   if (rows === null) {
     return (
-      <main style={{ minHeight: "100vh", background: "#0b1020", color: "white", padding: 28 }}>
-        <TopNav />
+      <main style={{ minHeight: "100vh", background: "transparent", color: "var(--k-fg)", padding: 28 }}>
         <div style={{ marginTop: 18, fontWeight: 900 }}>Loading profile…</div>
       </main>
     );
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#0b1020", color: "white", padding: "24px 20px" }}>
+    <main style={{ minHeight: "100vh", background: "transparent", color: "var(--k-fg)", padding: "24px 20px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <TopNav />
-
         <div style={{ marginTop: 16 }}>
           <div style={{ fontSize: 30, fontWeight: 950 }}>Cluster Profile</div>
           <div style={{ marginTop: 6, opacity: 0.75 }}>

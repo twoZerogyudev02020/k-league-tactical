@@ -1,6 +1,5 @@
 "use client";
 
-import TopNav from "../components/TopNav";
 import { useEffect, useMemo, useState } from "react";
 import {
   ResponsiveContainer,
@@ -1066,18 +1065,15 @@ export default function SimulatorPage() {
   }, [timeline]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0b1220] text-white">
-        <TopNav />
+  return (
+    <div className="min-h-screen bg-transparent text-[var(--k-fg)]">
         <div className="p-8">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1220] text-white w-full">
-      <TopNav />
-
+    <div className="min-h-screen bg-transparent text-[var(--k-fg)] w-full">
       <div className="w-full flex justify-center">
         <div className="w-full max-w-6xl px-4 py-8 space-y-6">
           {/* Header */}

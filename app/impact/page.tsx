@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import TopNav from "../components/TopNav";
 import {
   ResponsiveContainer,
   BarChart,
@@ -192,7 +191,6 @@ export default function ImpactPage() {
   if (err) {
     return (
       <div style={{ minHeight: "100vh", background: "#070A12", color: "white" }}>
-        <TopNav />
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px" }}>
           <div style={{ borderRadius: 16, border: "1px solid rgba(255,80,80,0.45)", background: "rgba(255,80,80,0.12)", padding: 16 }}>
             <div style={{ fontWeight: 900 }}>CSV 로드 오류</div>
@@ -209,7 +207,6 @@ export default function ImpactPage() {
   if (!rows) {
     return (
       <div style={{ minHeight: "100vh", background: "#070A12", color: "white" }}>
-        <TopNav />
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px", opacity: 0.8 }}>
           Loading…
         </div>
@@ -221,8 +218,6 @@ export default function ImpactPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#070A12", color: "white" }}>
-      <TopNav />
-
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px" }}>
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 22, fontWeight: 950 }}>

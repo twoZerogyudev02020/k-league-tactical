@@ -1,26 +1,85 @@
 @import "tailwindcss";
 
+/* =========================
+   K League Dark + Glass Theme
+   ========================= */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Page background */
+  --k-bg0: #05060a;
+  --k-bg1: #070a10;
+
+  /* Text */
+  --k-fg: rgba(255, 255, 255, 0.92);
+  --k-fg-dim: rgba(255, 255, 255, 0.72);
+  --k-fg-muted: rgba(255, 255, 255, 0.62);
+
+  /* Glass cards */
+  --k-card: rgba(255, 255, 255, 0.06);
+  --k-card-strong: rgba(255, 255, 255, 0.08);
+  --k-border: rgba(255, 255, 255, 0.10);
+  --k-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Topbar */
+  --k-topbar: rgba(0, 0, 0, 0.85);
+
+  /* Focus ring */
+  --k-ring: rgba(255, 255, 255, 0.18);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--k-bg0);
+  --color-foreground: var(--k-fg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  background: #05060a;
+  color: #e5e7eb;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: radial-gradient(900px 420px at 12% 0%, rgba(59, 130, 246, 0.14), transparent 60%),
+    radial-gradient(900px 460px at 88% 12%, rgba(34, 197, 94, 0.10), transparent 62%),
+    radial-gradient(900px 460px at 60% 92%, rgba(239, 68, 68, 0.08), transparent 55%),
+    linear-gradient(180deg, var(--k-bg0), var(--k-bg1));
+  color: var(--k-fg);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Optional helpers (safe even if unused) */
+.k-glass {
+  background: var(--k-card);
+  border: 1px solid var(--k-border);
+  border-radius: 18px;
+}
+
+.k-glass-strong {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+}
+
+.k-topbar {
+  background: var(--k-topbar);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+:focus-visible {
+  outline: 2px solid var(--k-ring);
+  outline-offset: 2px;
+}
+
+/* 모든 페이지 공통 K리그 배경 */
+.kleague-bg {
+  min-height: 100vh;
+  background: radial-gradient(900px 420px at 12% 0%, rgba(59, 130, 246, 0.14), transparent 60%),
+    radial-gradient(900px 460px at 88% 12%, rgba(34, 197, 94, 0.10), transparent 62%),
+    radial-gradient(900px 460px at 60% 92%, rgba(239, 68, 68, 0.08), transparent 55%),
+    linear-gradient(180deg, var(--k-bg0), var(--k-bg1));
 }

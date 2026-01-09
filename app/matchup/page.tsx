@@ -1,6 +1,5 @@
 "use client";
 
-import TopNav from "../components/TopNav";
 import { useEffect, useMemo, useState } from "react";
 
 /**
@@ -460,10 +459,8 @@ export default function MatchupPage() {
   const loadingSummary = summary === null;
 
   return (
-    <main style={{ minHeight: "100vh", background: "#0b1020", color: "white", padding: "24px 20px" }}>
+    <main style={{ minHeight: "100vh", background: "transparent", color: "var(--k-fg)", padding: "24px 20px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <TopNav />
-
         {/* Header + Tabs */}
         <div style={{ marginTop: 16, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
           <div>

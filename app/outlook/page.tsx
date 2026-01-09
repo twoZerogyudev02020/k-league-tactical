@@ -1,6 +1,5 @@
 "use client";
 
-import TopNav from "../components/TopNav";
 import { useEffect, useMemo, useState } from "react";
 import {
   ResponsiveContainer,
@@ -376,7 +375,7 @@ function MapTooltip({ active, payload }: { active?: boolean; payload?: any[] }) 
   if (!p) return null;
 
   return (
-    <div className="rounded-lg bg-[#0b1220] border border-white/15 p-3 text-xs shadow-xl max-w-[240px]">
+    <div className="rounded-lg bg-black/40 backdrop-blur-md border border-white/10 p-3 text-xs shadow-xl max-w-[240px]">
       <div className="flex items-center gap-2">
         <img
           src={teamLogoPath(p.team)}
@@ -634,17 +633,14 @@ export default function OutlookPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0b1220] text-white">
-        <TopNav />
+      <div className="min-h-screen bg-transparent text-[var(--k-fg)]">
         <div className="max-w-6xl mx-auto px-4 py-10">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0b1220] text-white">
-      <TopNav />
-
+    <div className="min-h-screen bg-transparent text-[var(--k-fg)]">
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
         {/* Filters */}
         <div className="rounded-xl bg-white/5 border border-white/10 p-4">

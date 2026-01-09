@@ -13,7 +13,8 @@ import {
   LabelList,
 } from "recharts";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 
 type Row = {
   team: string;
@@ -58,6 +59,16 @@ function quadrantLabel(tss: number, sgp: number, tssMean: number, sgpMean: numbe
 function fmt(n: number) {
   return Number.isFinite(n) ? n.toFixed(2) : "-";
 }
+function deltaFmt(v: number) {
+  const s = v >= 0 ? "+" : "";
+  return `${s}${fmt(v)}`;
+}
+function deltaColor(v: number) {
+  if (!Number.isFinite(v)) return "rgba(255,255,255,0.70)";
+  if (v > 0) return "rgba(34,197,94,0.95)";
+  if (v < 0) return "rgba(239,68,68,0.95)";
+  return "rgba(255,255,255,0.70)";
+}
 
 // ===== Cluster helpers =====
 function normalizeTeamName(s: string) {
@@ -98,47 +109,30 @@ function clusterColor(c: number | null | undefined) {
   return palette[c % palette.length];
 }
 
-/** PDF 기반 클러스터 이름/기준(짧게) */
-const CLUSTER_META: Record<
-  number,
-  { name: string; oneLine: string; bullets: string[] }
-> = {
+const CLUSTER_META: Record<number, { name: string; oneLine: string; bullets: string[] }> = {
   0: {
     name: "저강도 역습 전환형",
     oneLine: "압박 개입은 낮고, 빠른 전환·직선 공격으로 효율 추구",
-    bullets: [
-      "TSS ↑ (전환/직선 공격 강점)",
-      "SGP 중간 이상",
-      "PTI ↓↓↓ (전술 개입/압박 낮음)",
-    ],
+    bullets: ["TSS ↑ (전환/직선 공격 강점)", "SGP 중간 이상", "PTI ↓↓↓ (전술 개입/압박 낮음)"],
   },
   1: {
     name: "고강도 빌드업 주도형",
     oneLine: "강한 압박·전술 개입으로 상대 전개 자체를 통제",
-    bullets: [
-      "PTI ↑↑↑ (전술 개입 강함)",
-      "TSS/SGP는 낮을 수 있음(‘못함’이 아니라 ‘상대 전개 차단’)",
-    ],
+    bullets: ["PTI ↑↑↑ (전술 개입 강함)", "TSS/SGP는 낮을 수 있음(‘못함’이 아니라 ‘상대 전개 차단’)"],
   },
   2: {
     name: "저강도 빌드업 운영형",
     oneLine: "압박보다 점유·패스 구조로 안정 운영(기술 중심)",
-    bullets: [
-      "TSS ↑↑, SGP ↑↑ (점유·구조 강점)",
-      "PTI ↓ (강한 압박 팀에 취약 가능성)",
-    ],
+    bullets: ["TSS ↑↑, SGP ↑↑ (점유·구조 강점)", "PTI ↓ (강한 압박 팀에 취약 가능성)"],
   },
   3: {
     name: "고강도 전환 직진형",
     oneLine: "강한 압박으로 탈취 후 즉각 공격(하이리스크/하이리턴)",
-    bullets: [
-      "PTI ↑ (압박 기반)",
-      "SGP ↓, TSS 중간 (설계보다 순간 찌름/실수 유도)",
-    ],
+    bullets: ["PTI ↑ (압박 기반)", "SGP ↓, TSS 중간 (설계보다 순간 찌름/실수 유도)"],
   },
 };
 
-/** ✅ 로고 경로: public/logos/{team}.png */
+/** 로고 경로: public/logos/{team}.png */
 function teamLogoPath(team: string) {
   const map: Record<string, string> = {
     "FC서울": "fc서울",
@@ -181,9 +175,7 @@ function CustomTooltip({ active, payload, clusterMap, colorMode, q1, q2 }: any) 
       <div style={{ color: "#111827" }}>TSS: {fmt(d.TSS)}</div>
       <div style={{ color: "#111827" }}>SGP: {fmt(d.SGP)}</div>
       <div style={{ marginTop: 6, fontWeight: 800, color: "#111827" }}>PTI: {fmt(d.PTI)}</div>
-      <div style={{ marginTop: 4, color: "#374151" }}>
-        PTI Band: {ptiBand(d.PTI, q1, q2)}
-      </div>
+      <div style={{ marginTop: 4, color: "#374151" }}>PTI Band: {ptiBand(d.PTI, q1, q2)}</div>
       <div style={{ marginTop: 4, color: "#374151" }}>
         Cluster:{" "}
         <span style={{ fontWeight: 900, color: "#111827" }}>
@@ -193,6 +185,61 @@ function CustomTooltip({ active, payload, clusterMap, colorMode, q1, q2 }: any) 
       <div style={{ marginTop: 6, color: "#6b7280", fontSize: 11 }}>
         Color mode: {colorMode === "PTI" ? "PTI (fill)" : "Cluster (fill)"}
       </div>
+    </div>
+  );
+}
+
+/** ✅ 상단 우측 전체 메뉴 (항상 보이게) */
+function TopRightMenu() {
+  const pathname = usePathname();
+
+  const items: Array<{ label: string; href: string }> = [
+    { label: "Overview", href: "/" },
+    { label: "Profile", href: "/team" },
+    { label: "Matchup", href: "/matchup" },
+    { label: "Impact", href: "/impact" },
+    { label: "Validation", href: "/validation" },
+    { label: "Simulator", href: "/simulator" },
+    { label: "Outlook", href: "/outlook" },
+  ];
+
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname?.startsWith(href);
+  };
+
+  const chipBase: React.CSSProperties = {
+    padding: "10px 14px",
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: "rgba(255,255,255,0.86)",
+    fontSize: 13,
+    fontWeight: 900,
+    textDecoration: "none",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+  };
+
+  return (
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+      {items.map((it) => {
+        const active = isActive(it.href);
+        return (
+          <Link
+            key={it.href}
+            href={it.href}
+            style={{
+              ...chipBase,
+              border: active ? "1px solid rgba(255,255,255,0.36)" : chipBase.border,
+              background: active ? "rgba(255,255,255,0.14)" : chipBase.background,
+            }}
+          >
+            {it.label}
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -207,8 +254,7 @@ export default function Home() {
   const [clusterErr, setClusterErr] = useState<string | null>(null);
   const [clusterFilter, setClusterFilter] = useState<number | "ALL">("ALL");
 
-  // ✅ 색상 모드: PTI / CLUSTER (혼합 표현 제거)
-  const [colorMode, setColorMode] = useState<"PTI" | "CLUSTER">("CLUSTER"); // 기본을 CLUSTER로 추천
+  const [colorMode, setColorMode] = useState<"PTI" | "CLUSTER">("CLUSTER");
 
   useEffect(() => {
     let alive = true;
@@ -260,11 +306,21 @@ export default function Home() {
   const derived = useMemo(() => {
     const safeRows = rows ?? [];
     if (!safeRows.length) {
-      return { data: [] as any[], tssMean: 0, sgMean: 0, minPTI: 0, maxPTI: 1, q1: 0, q2: 1 };
+      return {
+        data: [] as any[],
+        tssMean: 0,
+        sgMean: 0,
+        ptiMean: 0,
+        minPTI: 0,
+        maxPTI: 1,
+        q1: 0,
+        q2: 1,
+      };
     }
 
     const tssMean = mean(safeRows.map((r) => r.TSS));
     const sgMean = mean(safeRows.map((r) => r.SGP));
+    const ptiMean = mean(safeRows.map((r) => r.PTI));
 
     const ptis = safeRows.map((r) => r.PTI).slice().sort((a, b) => a - b);
     const minPTI = ptis[0] ?? 0;
@@ -278,7 +334,7 @@ export default function Home() {
       return { ...r, band, color: ptiBandColor(band), size: ptToSize(r.PTI, minPTI, maxPTI) };
     });
 
-    return { data, tssMean, sgMean, minPTI, maxPTI, q1, q2 };
+    return { data, tssMean, sgMean, ptiMean, minPTI, maxPTI, q1, q2 };
   }, [rows]);
 
   const clusterMap = useMemo(() => {
@@ -295,7 +351,6 @@ export default function Home() {
     return Array.from(s).sort((a, b) => a - b);
   }, [clusterRows]);
 
-  // ✅ bandFilter는 “PTI band 필터”라서, colorMode가 CLUSTER여도 그대로 유지 가능.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return derived.data.filter((d) => {
@@ -310,42 +365,17 @@ export default function Home() {
     return derived.data.find((d) => d.team === selectedTeam) ?? null;
   }, [derived.data, selectedTeam]);
 
-  // ✅ (중요) “차트에서 흐리게 처리할 기준”에 clusterFilter도 포함
   const filteredTeamSet = useMemo(() => new Set(filtered.map((d) => d.team)), [filtered]);
-
   const full = derived.data;
 
-  const hasAnyFilter =
-    query.trim().length > 0 || bandFilter !== "ALL" || clusterFilter !== "ALL";
+  const hasAnyFilter = query.trim().length > 0 || bandFilter !== "ALL" || clusterFilter !== "ALL";
 
-  const bg = "#0b1020";
-  const card = "rgba(255,255,255,0.06)";
-  const cardBorder = "1px solid rgba(255,255,255,0.10)";
-  const textDim = "rgba(255,255,255,0.72)";
-  const textStrong = "rgba(255,255,255,0.92)";
-
-  const kpi = [
-    { label: "Teams", value: String((rows ?? []).length) },
-    { label: "TSS mean", value: fmt(derived.tssMean) },
-    { label: "SGP mean", value: fmt(derived.sgMean) },
-    { label: "PTI range", value: `${fmt(derived.minPTI)}–${fmt(derived.maxPTI)}` },
-  ];
-
-  // ✅ clusterFilter가 선택되면, 오른쪽 리스트/차트 둘 다 동일 기준 사용
   const matchesClusterFilter = (team: string) => {
     if (clusterFilter === "ALL") return true;
     const cl = clusterMap.get(normalizeTeamName(team));
     return cl === clusterFilter;
   };
 
-  const filteredWithCluster = useMemo(() => {
-    return filtered.map((t) => ({
-      ...t,
-      cluster: clusterMap.get(normalizeTeamName(t.team)) ?? null,
-    }));
-  }, [filtered, clusterMap]);
-
-  // 클러스터 기준/이름이 “확실하게” 보이게: summary에 meta 노출
   const clusterSummary = useMemo(() => {
     const buckets = new Map<number, string[]>();
     (derived.data ?? []).forEach((t) => {
@@ -365,21 +395,36 @@ export default function Home() {
       .sort((a, b) => a.cl - b.cl);
   }, [derived.data, clusterMap]);
 
+  // ✅ Theme vars (min changes: keep same inline usage, but values come from CSS vars)
+  const bg = "var(--k-bg0)";
+  const card = "var(--k-card)";
+  const cardBorder = "1px solid var(--k-border)";
+  const textDim = "var(--k-fg-dim)";
+  const textStrong = "var(--k-fg)";
+
+  const kpi = [
+    { label: "Teams", value: String((rows ?? []).length) },
+    { label: "TSS mean", value: fmt(derived.tssMean) },
+    { label: "SGP mean", value: fmt(derived.sgMean) },
+    { label: "PTI range", value: `${fmt(derived.minPTI)}–${fmt(derived.maxPTI)}` },
+  ];
+
   if (rows === null) {
     return (
-      <main style={{ minHeight: "100vh", background: bg, padding: 28, color: textStrong }}>
+      <main style={{ minHeight: "100vh", background: bg, padding: 28, color: textStrong as any }}>
         <div style={{ fontSize: 18, fontWeight: 950 }}>Loading overview…</div>
-        <div style={{ marginTop: 8, color: textDim, fontSize: 13 }}>
-          fetching <code style={{ color: textStrong }}>/data/overview.json</code>
+        <div style={{ marginTop: 8, color: textDim as any, fontSize: 13 }}>
+          fetching <code style={{ color: textStrong as any }}>/data/overview.json</code>
         </div>
       </main>
     );
   }
+
   if (loadErr) {
     return (
-      <main style={{ minHeight: "100vh", background: bg, padding: 28, color: textStrong }}>
+      <main style={{ minHeight: "100vh", background: bg, padding: 28, color: textStrong as any }}>
         <div style={{ fontSize: 18, fontWeight: 950 }}>Overview data load failed</div>
-        <div style={{ marginTop: 8, color: textDim, fontSize: 13, lineHeight: 1.6 }}>
+        <div style={{ marginTop: 8, color: textDim as any, fontSize: 13, lineHeight: 1.6 }}>
           {loadErr}
           <div style={{ marginTop: 10 }}>
             ✅ <b>public/data/overview.json</b> 파일 존재 확인해.
@@ -393,10 +438,10 @@ export default function Home() {
     <main
       style={{
         minHeight: "100vh",
-        background: `radial-gradient(900px 400px at 10% 0%, rgba(59,130,246,0.22), transparent 60%),
-                     radial-gradient(900px 450px at 90% 10%, rgba(34,197,94,0.18), transparent 60%),
-                     radial-gradient(900px 450px at 60% 90%, rgba(239,68,68,0.14), transparent 55%),
-                     ${bg}`,
+        background: `radial-gradient(1000px 520px at 8% 0%, rgba(59,130,246,0.12), transparent 60%),
+                     radial-gradient(1000px 540px at 92% 10%, rgba(34,197,94,0.10), transparent 62%),
+                     radial-gradient(1000px 540px at 60% 94%, rgba(239,68,68,0.08), transparent 55%),
+                     linear-gradient(180deg, var(--k-bg0), var(--k-bg1))`,
         padding: "34px 28px",
       }}
     >
@@ -404,10 +449,10 @@ export default function Home() {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
           <div>
-            <div style={{ fontSize: 36, fontWeight: 950, letterSpacing: -0.6, color: textStrong }}>
+            <div style={{ fontSize: 36, fontWeight: 950, letterSpacing: -0.6, color: textStrong as any }}>
               K League Tactical Overview
             </div>
-            <div style={{ marginTop: 8, color: textDim, fontSize: 14 }}>
+            <div style={{ marginTop: 8, color: textDim as any, fontSize: 14 }}>
               TSS–SGP distribution (bubble size = PTI, color = mode). Dashed lines show league averages.
             </div>
           </div>
@@ -416,9 +461,9 @@ export default function Home() {
             style={{
               padding: "10px 12px",
               borderRadius: 12,
-              background: "rgba(255,255,255,0.06)",
+              background: "var(--k-card)",
               border: "1px solid rgba(255,255,255,0.12)",
-              color: textDim,
+              color: textDim as any,
               fontSize: 12,
             }}
           >
@@ -439,7 +484,7 @@ export default function Home() {
               }}
             >
               <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>{x.label}</div>
-              <div style={{ marginTop: 6, color: textStrong, fontSize: 18, fontWeight: 900 }}>{x.value}</div>
+              <div style={{ marginTop: 6, color: textStrong as any, fontSize: 18, fontWeight: 900 }}>{x.value}</div>
             </div>
           ))}
         </div>
@@ -457,8 +502,8 @@ export default function Home() {
           {/* Left: Chart card */}
           <div
             style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.10)",
+              background: card,
+              border: cardBorder,
               borderRadius: 18,
               padding: 14,
               overflow: "hidden",
@@ -481,7 +526,6 @@ export default function Home() {
                 }}
               />
 
-              {/* PTI band filter */}
               <div style={{ display: "flex", gap: 8 }}>
                 {(["ALL", "LOW", "MID", "HIGH"] as const).map((b) => (
                   <button
@@ -504,7 +548,6 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* ✅ Color mode toggle (혼합 제거) */}
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   onClick={() => setColorMode("PTI")}
@@ -527,11 +570,11 @@ export default function Home() {
                   onClick={() => setColorMode("CLUSTER")}
                   style={{
                     padding: "9px 10px",
-                    borderRadius: 12,
                     border:
                       colorMode === "CLUSTER"
                         ? "1px solid rgba(255,255,255,0.40)"
                         : "1px solid rgba(255,255,255,0.14)",
+                    borderRadius: 12,
                     background: colorMode === "CLUSTER" ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.07)",
                     color: "rgba(255,255,255,0.88)",
                     fontSize: 12,
@@ -581,7 +624,6 @@ export default function Home() {
                 <ScatterChart margin={{ top: 22, right: 22, bottom: 30, left: 26 }}>
                   <CartesianGrid />
 
-                  {/* Axis labels + strong ticks */}
                   <XAxis
                     type="number"
                     dataKey="TSS"
@@ -620,12 +662,7 @@ export default function Home() {
 
                   <Tooltip
                     content={
-                      <CustomTooltip
-                        clusterMap={clusterMap}
-                        colorMode={colorMode}
-                        q1={derived.q1}
-                        q2={derived.q2}
-                      />
+                      <CustomTooltip clusterMap={clusterMap} colorMode={colorMode} q1={derived.q1} q2={derived.q2} />
                     }
                   />
 
@@ -638,9 +675,7 @@ export default function Home() {
                       return {
                         ...d,
                         _passAll: passAll,
-                        _showLabel:
-                          (selectedTeam && d.team === selectedTeam) ||
-                          (hasAnyFilter && passAll),
+                        _showLabel: (selectedTeam && d.team === selectedTeam) || (hasAnyFilter && passAll),
                       };
                     })}
                     onClick={(e: any) => {
@@ -653,15 +688,10 @@ export default function Home() {
                       const passCluster = matchesClusterFilter(d.team);
                       const passAll = passQueryBand && passCluster;
 
-                      // ✅ 클러스터 필터가 켜지면 차트에서도 흐리게 처리
                       const dim = hasAnyFilter && !passAll;
                       const isSel = selectedTeam === d.team;
 
                       const cl = clusterMap.get(normalizeTeamName(d.team)) ?? null;
-
-                      // ✅ 혼합 제거:
-                      // PTI 모드: fill=PTI band / stroke=기본
-                      // CLUSTER 모드: fill=cluster / stroke=기본
                       const fillColor = colorMode === "PTI" ? d.color : clusterColor(cl);
 
                       const opacity = dim ? 0.12 : 0.95;
@@ -708,12 +738,18 @@ export default function Home() {
               </ResponsiveContainer>
             </div>
 
-            {/* Legend + “기준” 설명을 더 확실히 */}
-            <div style={{ marginTop: 10, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            {/* Legend + “기준” 설명 */}
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
               <div style={{ color: "rgba(255,255,255,0.70)", fontSize: 12, lineHeight: 1.55 }}>
-                <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>
-                  What defines clusters?
-                </div>
+                <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.90)" }}>What defines clusters?</div>
                 <div style={{ marginTop: 6, color: "rgba(255,255,255,0.66)" }}>
                   TSS = 직선성/전환/위협 창출, SGP = 점유·패스 구조·빌드업, PTI = 압박·전술 개입 강도.
                 </div>
@@ -743,12 +779,8 @@ export default function Home() {
                               display: "inline-block",
                             }}
                           />
-                          <span style={{ color: "rgba(255,255,255,0.82)", fontWeight: 900 }}>
-                            C{cid}
-                          </span>
-                          <span style={{ color: "rgba(255,255,255,0.62)" }}>
-                            {CLUSTER_META[cid]?.name ?? ""}
-                          </span>
+                          <span style={{ color: "rgba(255,255,255,0.82)", fontWeight: 900 }}>C{cid}</span>
+                          <span style={{ color: "rgba(255,255,255,0.62)" }}>{CLUSTER_META[cid]?.name ?? ""}</span>
                         </div>
                       ))}
                     </div>
@@ -769,12 +801,12 @@ export default function Home() {
 
           {/* Right */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {/* TEAM INSIGHT */}
+            {/* TEAM INSIGHT (강화) */}
             <div style={{ background: card, border: cardBorder, borderRadius: 18, padding: 14 }}>
               <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 900 }}>TEAM INSIGHT</div>
 
               {!selected ? (
-                <div style={{ marginTop: 10, color: textDim, fontSize: 13, lineHeight: 1.6 }}>
+                <div style={{ marginTop: 10, color: textDim as any, fontSize: 13, lineHeight: 1.6 }}>
                   Click a point on the chart to inspect a team.
                   <div style={{ marginTop: 10, color: "rgba(255,255,255,0.55)", fontSize: 12 }}>
                     Tip: Use the search box to quickly find a club.
@@ -791,6 +823,7 @@ export default function Home() {
                       boxShadow: "0 18px 40px rgba(0,0,0,0.25)",
                     }}
                   >
+                    {/* 상단 정렬: 로고/팀명/클러스터/밴드(뱃지) */}
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <img
                         src={teamLogoPath(selected.team)}
@@ -809,38 +842,77 @@ export default function Home() {
                         }}
                       />
 
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 20, fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>
                           {selected.team}
                         </div>
-                        <div style={{ marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)" }}>
-                          PTI Band:{" "}
-                          <span style={{ color: selected.color, fontWeight: 950 }}>{selected.band}</span>
-                        </div>
-                        <div style={{ marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)" }}>
+
+                        {(() => {
+                          const cl = clusterMap.get(normalizeTeamName(selected.team));
+                          const meta = cl !== undefined ? CLUSTER_META[cl] : null;
+
+                          return (
+                            <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {/* Cluster badge */}
+                              <span
+                                style={{
+                                  padding: "6px 10px",
+                                  borderRadius: 999,
+                                  border: "1px solid rgba(255,255,255,0.14)",
+                                  background: "rgba(255,255,255,0.06)",
+                                  color: "rgba(255,255,255,0.86)",
+                                  fontSize: 12,
+                                  fontWeight: 900,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: 999,
+                                    background: clusterColor(cl),
+                                    border: "1px solid rgba(255,255,255,0.22)",
+                                    display: "inline-block",
+                                  }}
+                                />
+                                {cl === undefined ? "Cluster —" : `C${cl}`}{" "}
+                                <span style={{ color: "rgba(255,255,255,0.65)", fontWeight: 900 }}>
+                                  {meta?.name ?? ""}
+                                </span>
+                              </span>
+
+                              {/* Band badge */}
+                              <span
+                                style={{
+                                  padding: "6px 10px",
+                                  borderRadius: 999,
+                                  border: "1px solid rgba(255,255,255,0.14)",
+                                  background: "rgba(255,255,255,0.06)",
+                                  color: "rgba(255,255,255,0.86)",
+                                  fontSize: 12,
+                                  fontWeight: 900,
+                                }}
+                              >
+                                PTI Band:{" "}
+                                <span style={{ color: selected.color, fontWeight: 950 }}>{selected.band}</span>
+                              </span>
+                            </div>
+                          );
+                        })()}
+
+                        <div style={{ marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.70)" }}>
                           Quadrant:{" "}
                           <span style={{ fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>
                             {quadrantLabel(selected.TSS, selected.SGP, derived.tssMean, derived.sgMean)}
                           </span>
                         </div>
-
-                        {/* Cluster 표시 + 이름 */}
-                        {(() => {
-                          const cl = clusterMap.get(normalizeTeamName(selected.team));
-                          const meta = cl !== undefined ? CLUSTER_META[cl] : null;
-                          return (
-                            <div style={{ marginTop: 4, fontSize: 12, color: "rgba(255,255,255,0.70)" }}>
-                              Cluster:{" "}
-                              <span style={{ fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>
-                                {cl === undefined ? "—" : `C${cl} · ${meta?.name ?? ""}`}
-                              </span>
-                            </div>
-                          );
-                        })()}
                       </div>
                     </div>
 
-                    {/* Stats bars */}
+                    {/* TSS/SGP/PTI 게이지/바 3줄 통일 */}
                     <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
                       {[
                         { k: "TSS", v: selected.TSS },
@@ -848,7 +920,14 @@ export default function Home() {
                         { k: "PTI", v: selected.PTI },
                       ].map((s) => (
                         <div key={s.k}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(255,255,255,0.75)" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              fontSize: 12,
+                              color: "rgba(255,255,255,0.75)",
+                            }}
+                          >
                             <span style={{ fontWeight: 900 }}>{s.k}</span>
                             <span style={{ fontWeight: 950 }}>{fmt(s.v)}</span>
                           </div>
@@ -873,6 +952,45 @@ export default function Home() {
                           </div>
                         </div>
                       ))}
+                    </div>
+
+                    {/* ✅ 리그 평균 대비 +/– 한 줄 (강화 포인트) */}
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: "10px 12px",
+                        borderRadius: 14,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        background: "rgba(0,0,0,0.22)",
+                        color: "rgba(255,255,255,0.78)",
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <div style={{ fontWeight: 950, color: "rgba(255,255,255,0.88)" }}>vs League Average</div>
+                      <div style={{ marginTop: 6, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <span>
+                          TSS{" "}
+                          <span style={{ fontWeight: 950, color: deltaColor(selected.TSS - derived.tssMean) }}>
+                            {deltaFmt(selected.TSS - derived.tssMean)}
+                          </span>
+                        </span>
+                        <span>
+                          SGP{" "}
+                          <span style={{ fontWeight: 950, color: deltaColor(selected.SGP - derived.sgMean) }}>
+                            {deltaFmt(selected.SGP - derived.sgMean)}
+                          </span>
+                        </span>
+                        <span>
+                          PTI{" "}
+                          <span style={{ fontWeight: 950, color: deltaColor(selected.PTI - derived.ptiMean) }}>
+                            {deltaFmt(selected.PTI - derived.ptiMean)}
+                          </span>
+                        </span>
+                      </div>
+                      <div style={{ marginTop: 6, color: "rgba(255,255,255,0.60)", fontSize: 11 }}>
+                        (+) higher than league mean • (–) lower than league mean
+                      </div>
                     </div>
 
                     <button
@@ -901,18 +1019,22 @@ export default function Home() {
             {/* Quadrant Guide */}
             <div style={{ background: card, border: cardBorder, borderRadius: 18, padding: 14 }}>
               <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 900 }}>QUADRANT GUIDE</div>
-              <div style={{ marginTop: 10, color: textDim, fontSize: 12, lineHeight: 1.65 }}>
+              <div style={{ marginTop: 10, color: textDim as any, fontSize: 12, lineHeight: 1.65 }}>
                 <div>
-                  <span style={{ fontWeight: 900, color: textStrong }}>High-Execution Attacking</span> — strong execution + aggressive progression.
+                  <span style={{ fontWeight: 900, color: textStrong as any }}>High-Execution Attacking</span> — strong
+                  execution + aggressive progression.
                 </div>
                 <div style={{ marginTop: 8 }}>
-                  <span style={{ fontWeight: 900, color: textStrong }}>Attacking w/ Low Execution</span> — progression exists but execution intensity is weak.
+                  <span style={{ fontWeight: 900, color: textStrong as any }}>Attacking w/ Low Execution</span> —
+                  progression exists but execution intensity is weak.
                 </div>
                 <div style={{ marginTop: 8 }}>
-                  <span style={{ fontWeight: 900, color: textStrong }}>High-Execution Controlled</span> — high execution with more controlled progression.
+                  <span style={{ fontWeight: 900, color: textStrong as any }}>High-Execution Controlled</span> — high
+                  execution with more controlled progression.
                 </div>
                 <div style={{ marginTop: 8 }}>
-                  <span style={{ fontWeight: 900, color: textStrong }}>Low-Activity Conservative</span> — low intensity + conservative progression.
+                  <span style={{ fontWeight: 900, color: textStrong as any }}>Low-Activity Conservative</span> — low
+                  intensity + conservative progression.
                 </div>
               </div>
             </div>
@@ -926,7 +1048,16 @@ export default function Home() {
                 </div>
               </div>
 
-              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, maxHeight: 280, overflow: "auto" }}>
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  maxHeight: 280,
+                  overflow: "auto",
+                }}
+              >
                 {filtered
                   .filter((t) => matchesClusterFilter(t.team))
                   .slice()
@@ -943,7 +1074,10 @@ export default function Home() {
                           textAlign: "left",
                           padding: "10px 10px",
                           borderRadius: 14,
-                          border: selectedTeam === t.team ? "1px solid rgba(255,255,255,0.34)" : "1px solid rgba(255,255,255,0.12)",
+                          border:
+                            selectedTeam === t.team
+                              ? "1px solid rgba(255,255,255,0.34)"
+                              : "1px solid rgba(255,255,255,0.12)",
                           background: selectedTeam === t.team ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)",
                           color: "rgba(255,255,255,0.86)",
                           cursor: "pointer",
@@ -951,7 +1085,15 @@ export default function Home() {
                       >
                         <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                           <div style={{ fontWeight: 900 }}>{t.team}</div>
-                          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.60)", display: "flex", gap: 8, alignItems: "center" }}>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "rgba(255,255,255,0.60)",
+                              display: "flex",
+                              gap: 8,
+                              alignItems: "center",
+                            }}
+                          >
                             {cl !== undefined && (
                               <>
                                 <span style={{ fontWeight: 900 }}>C{cl}</span>
@@ -980,7 +1122,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* CLUSTERS card: 필터 누르면 차트도 같이 반영됨 */}
+            {/* CLUSTERS card */}
             <div style={{ background: card, border: cardBorder, borderRadius: 18, padding: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 900 }}>CLUSTERS</div>
@@ -1044,7 +1186,7 @@ export default function Home() {
                     ))}
                   </div>
 
-                  {/* 기준/이름/요약을 명확히 */}
+                  {/* 기준/이름/요약 */}
                   <div style={{ marginTop: 12, color: "rgba(255,255,255,0.70)", fontSize: 12, lineHeight: 1.6 }}>
                     {clusterSummary.map((c) => (
                       <div
@@ -1053,7 +1195,10 @@ export default function Home() {
                           marginTop: 10,
                           padding: "10px 10px",
                           borderRadius: 14,
-                          border: clusterFilter === c.cl ? "1px solid rgba(255,255,255,0.28)" : "1px solid rgba(255,255,255,0.10)",
+                          border:
+                            clusterFilter === c.cl
+                              ? "1px solid rgba(255,255,255,0.28)"
+                              : "1px solid rgba(255,255,255,0.10)",
                           background: clusterFilter === c.cl ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)",
                           cursor: "pointer",
                         }}
