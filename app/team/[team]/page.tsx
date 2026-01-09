@@ -105,18 +105,18 @@ const TEAM_BRAND: Record<string, { slogan: string }> = {
 
 // ✅ 너가 준 “배경색/글씨색” 정확 반영
 const TEAM_SLOGAN_STYLE: Record<string, { bg: string; fg: string }> = {
-  "울산 HD FC": { bg: "#0EA5E9", fg: "#FFFFFF" },
+  "울산 HD FC": { bg: "#1623adff", fg: "#FFFFFF" },
   "강원FC": { bg: "#F59E0B", fg: "#0B0B0B" },
   "김천 상무 프로축구단": { bg: "#EF4444", fg: "#1E3A8A" },
   "FC서울": { bg: "#EF4444", fg: "#0B0B0B" },
   "수원FC": { bg: "#2563EB", fg: "#EF4444" },
   "포항 스틸러스": { bg: "#EF4444", fg: "#0B0B0B" },
-  "제주SK FC": { bg: "#F97316", fg: "#EF4444" },
+  "제주SK FC": { bg: "#F97316", fg: "#010101ff" },
   "대전 하나 시티즌": { bg: "rgb(0,122,108)", fg: "rgb(142,37,63)" },
   "광주FC": { bg: "#FCD34D", fg: "#8B3A2E" },
-  "전북 현대 모터스": { bg: "#22C55E", fg: "#FFFFFF" },
+  "전북 현대 모터스": { bg: "#0f5c2bff", fg: "#FFFFFF" },
   "대구FC": { bg: "rgb(153,206,227)", fg: "#FFFFFF" },
-  "인천 유나이티드": { bg: "#0B0B0B", fg: "#FFFFFF" },
+  "인천 유나이티드": { bg: "#172e87ff", fg: "#000000ff" },
 };
 
 function getSlogan(team: string) {
