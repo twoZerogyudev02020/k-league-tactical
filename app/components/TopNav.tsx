@@ -51,6 +51,7 @@ export default function TopNav() {
           <Link href="/impact" style={linkStyle("/impact")}>Impact</Link>
           <Link href="/validation" style={linkStyle("/validation")}>Validation</Link>
           <Link href="/simulator" style={linkStyle("/simulator")}>Simulator</Link>
+          <Link href="/outlook" style={linkStyle("/outlook")}>Outlook</Link>
         </div>
       </div>
     </div>
