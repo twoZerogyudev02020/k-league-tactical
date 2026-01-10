@@ -5,12 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { Barlow_Condensed, Teko } from "next/font/google";
 
-// ✅ “포스터/슬로건” 느낌: 굵고 + 기울어진 Condensed 계열
+// ✅ “포스터/슬로건” 느낌: 굵고 + 기울어진 Condensed
 const sloganFont = Barlow_Condensed({ weight: ["900"], style: ["italic"], subsets: ["latin"] });
-// ✅ UI용: 스포츠 보드 느낌(숫자/라벨 깔끔)
+// ✅ UI용: 스포츠 보드 느낌
 const uiFont = Teko({ weight: ["500", "700"], subsets: ["latin"] });
 
-// recharts는 클라이언트 전용으로 안전하게 dynamic import
+// recharts (client-only)
 const ResponsiveContainer = dynamic(() => import("recharts").then((m) => m.ResponsiveContainer), { ssr: false });
 const RadarChart = dynamic(() => import("recharts").then((m) => m.RadarChart), { ssr: false });
 const Radar = dynamic(() => import("recharts").then((m) => m.Radar), { ssr: false });
@@ -37,6 +37,7 @@ function safeDecode(v: string | undefined) {
     return v;
   }
 }
+
 function mean(arr: number[]) {
   return arr.reduce((a, b) => a + b, 0) / Math.max(arr.length, 1);
 }
@@ -59,32 +60,61 @@ function pick(obj: AnyRow, keys: string[]) {
   return undefined;
 }
 
-// ✅ 팀명 매칭 강건화
+// ✅ 팀명 매칭 강건화(공백/대소문자/특수문자)
 function normTeam(s: string) {
-  return (s ?? "").normalize("NFKC").trim().replace(/\s+/g, "").toLowerCase();
+  return (s ?? "")
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, "")
+    .toLowerCase();
 }
 function sameTeam(a: string, b: string) {
   return normTeam(a) === normTeam(b);
 }
 
-// ===== Logo mapping =====
+/**
+ * ✅✅ 로고 파일명은 "네 public/logos 폴더 파일명" 그대로 사용
+ * 스크린샷 기준:
+ * fc서울, 강원fc, 광주fc, 김천상무, 대구fc, 대전하나시티즌, 수원fc,
+ * 울산HD, 인천유나이티드, 전북현대, 제주sk, 포항스틸러스 (+ fc안양)
+ */
 function teamLogoPath(team: string) {
-  const map: Record<string, string> = {
-    "FC서울": "fc서울",
-    "강원FC": "강원fc",
-    "광주FC": "광주fc",
-    "김천 상무 프로축구단": "김천상무",
-    "대구FC": "대구fc",
-    "대전 하나 시티즌": "대전하나시티즌",
-    "수원FC": "수원fc",
-    "울산 HD FC": "울산HD",
-    "인천 유나이티드": "인천유나이티드",
-    "전북 현대 모터스": "전북현대",
-    "제주SK FC": "제주sk",
-    "포항 스틸러스": "포항스틸러스",
-  };
-  const file = map[team] ?? team;
-  return `/logos/${file}.png`;
+  const t = normTeam(team);
+
+  const map: Array<{ keys: string[]; file: string }> = [
+    { keys: ["fc서울", "서울", "seoul", "fcseoul"], file: "fc서울" },
+    { keys: ["강원fc", "강원", "gangwon"], file: "강원fc" },
+    { keys: ["광주fc", "광주", "gwangju"], file: "광주fc" },
+    { keys: ["김천상무", "김천", "gimcheon", "김천상무프로축구단", "김천상무프로축구단"], file: "김천상무" },
+    { keys: ["대구fc", "대구", "daegu"], file: "대구fc" },
+    { keys: ["대전하나시티즌", "대전", "daejeon"], file: "대전하나시티즌" },
+    { keys: ["수원fc", "수원", "suwon"], file: "수원fc" },
+    { keys: ["울산hd", "울산hdfc", "울산", "ulsan"], file: "울산HD" },
+    { keys: ["인천유나이티드", "인천", "incheon"], file: "인천유나이티드" },
+    { keys: ["전북현대", "전북", "jeonbuk", "전북현대모터스"], file: "전북현대" },
+    { keys: ["제주sk", "제주", "jeju", "제주skfc"], file: "제주sk" },
+    { keys: ["포항스틸러스", "포항", "pohang"], file: "포항스틸러스" },
+
+    // 원하면 삭제
+    { keys: ["fc안양", "안양", "anyang", "fcanyang"], file: "fc안양" },
+  ];
+
+  // 1) 정확 일치
+  for (const item of map) {
+    if (item.keys.some((k) => normTeam(k) === t)) {
+      return `/logos/${encodeURIComponent(item.file)}.png`;
+    }
+  }
+
+  // 2) 부분 포함 (긴 정식명도 잡기)
+  for (const item of map) {
+    if (item.keys.some((k) => t.includes(normTeam(k)))) {
+      return `/logos/${encodeURIComponent(item.file)}.png`;
+    }
+  }
+
+  // 3) default (깨진 이미지 방지)
+  return `/logos/default.png`;
 }
 
 // ===== Team Brand (Slogan) =====
@@ -103,20 +133,19 @@ const TEAM_BRAND: Record<string, { slogan: string }> = {
   "인천 유나이티드": { slogan: "BE UNITED, BE THE ONE" },
 };
 
-// ✅ 너가 준 “배경색/글씨색” 정확 반영
 const TEAM_SLOGAN_STYLE: Record<string, { bg: string; fg: string }> = {
-  "울산 HD FC": { bg: "#1623adff", fg: "#FFFFFF" },
+  "울산 HD FC": { bg: "#0EA5E9", fg: "#FFFFFF" },
   "강원FC": { bg: "#F59E0B", fg: "#0B0B0B" },
   "김천 상무 프로축구단": { bg: "#EF4444", fg: "#1E3A8A" },
   "FC서울": { bg: "#EF4444", fg: "#0B0B0B" },
   "수원FC": { bg: "#2563EB", fg: "#EF4444" },
   "포항 스틸러스": { bg: "#EF4444", fg: "#0B0B0B" },
-  "제주SK FC": { bg: "#F97316", fg: "#010101ff" },
+  "제주SK FC": { bg: "#F97316", fg: "#EF4444" },
   "대전 하나 시티즌": { bg: "rgb(0,122,108)", fg: "rgb(142,37,63)" },
   "광주FC": { bg: "#FCD34D", fg: "#8B3A2E" },
-  "전북 현대 모터스": { bg: "#0f5c2bff", fg: "#FFFFFF" },
+  "전북 현대 모터스": { bg: "#22C55E", fg: "#FFFFFF" },
   "대구FC": { bg: "rgb(153,206,227)", fg: "#FFFFFF" },
-  "인천 유나이티드": { bg: "#172e87ff", fg: "#000000ff" },
+  "인천 유나이티드": { bg: "#1a0a6aff", fg: "#000000ff" },
 };
 
 function getSlogan(team: string) {
@@ -126,7 +155,6 @@ function getSloganStyle(team: string) {
   return TEAM_SLOGAN_STYLE[team] ?? { bg: "rgba(255,255,255,0.10)", fg: "#FFFFFF" };
 }
 
-// “진짜 블랙 + 글래스” 헤더 배경(팀색은 아주 은은하게)
 function makeHeaderGradient() {
   return `
     radial-gradient(1000px 420px at 18% -20%, rgba(255,255,255,0.08), transparent 55%),
@@ -134,8 +162,14 @@ function makeHeaderGradient() {
     linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.18))
   `.trim();
 }
+function makePageBg() {
+  return `
+    radial-gradient(1100px 520px at 18% 8%, rgba(255,255,255,0.06), transparent 60%),
+    radial-gradient(900px 420px at 82% 18%, rgba(255,255,255,0.045), transparent 62%),
+    linear-gradient(180deg, #05060a 0%, #060810 45%, #05060a 100%)
+  `.trim();
+}
 
-// ===== PTI band =====
 function ptiBand(pti: number, q1: number, q2: number): "LOW" | "MID" | "HIGH" {
   if (pti <= q1) return "LOW";
   if (pti <= q2) return "MID";
@@ -147,7 +181,6 @@ function ptiBandColor(b: "LOW" | "MID" | "HIGH") {
   return "#ef4444";
 }
 
-// ===== CSV (team_clusters.csv) simple parser =====
 function parseSimpleCSV(text: string) {
   const lines = text
     .split(/\r?\n/)
@@ -173,7 +206,6 @@ function parseSimpleCSV(text: string) {
   return out;
 }
 
-// 길이에 따라 슬로건 글자 크기 자동 조절 (오른쪽 배너용)
 function sloganFontSize(s: string) {
   const L = (s ?? "").length;
   if (L <= 14) return 54;
@@ -187,11 +219,8 @@ export default function TeamProfilePage() {
   const params = useParams<{ team?: string }>();
   const teamName = useMemo(() => safeDecode(params?.team), [params]);
 
-  // ✅ K리그 테마 변수 기반 (배경은 layout/body가 담당 → page는 투명)
-  const card = "var(--k-card)";
-  const cardBorder = "1px solid var(--k-border)";
-  const textDim = "var(--k-fg-dim)";
-  const textStrong = "var(--k-fg)";
+  const card = "rgba(255,255,255,0.06)";
+  const cardBorder = "1px solid rgba(255,255,255,0.12)";
 
   const [overview, setOverview] = useState<OverviewRow[] | null>(null);
   const [seriesRaw, setSeriesRaw] = useState<AnyRow[] | null>(null);
@@ -351,7 +380,7 @@ export default function TeamProfilePage() {
   function metricStats(key: "TSS" | "SGP" | "PTI") {
     const vals = teamSeries.map((d) => Number(d[key])).filter((x) => Number.isFinite(x));
     if (!vals.length) {
-      return { n: 0, mean: NaN, std: NaN, min: NaN, max: NaN, range: NaN, last5Delta: NaN };
+      return { n: 0, std: NaN, range: NaN, last5Delta: NaN };
     }
     const s = std(vals);
     const mi = Math.min(...vals);
@@ -381,10 +410,11 @@ export default function TeamProfilePage() {
 
   const teamLabel = row?.team ?? teamName;
   const slogan = useMemo(() => getSlogan(teamLabel), [teamLabel]);
-  const ss = useMemo(() => getSloganStyle(teamLabel), [teamLabel]); // bg/fg
+  const ss = useMemo(() => getSloganStyle(teamLabel), [teamLabel]);
   const sSize = useMemo(() => sloganFontSize(slogan), [slogan]);
 
   const headerGrad = makeHeaderGradient();
+  const pageBg = makePageBg();
 
   const leagueStroke = "rgba(17,24,39,0.78)";
   const teamStroke = "rgba(0,0,0,0.35)";
@@ -429,7 +459,7 @@ export default function TeamProfilePage() {
             borderRadius: 12,
             background: "rgba(255,255,255,0.06)",
             border: "1px solid rgba(255,255,255,0.12)",
-            color: "var(--k-fg-dim)",
+            color: "rgba(255,255,255,0.70)",
             fontSize: 12,
           }}
         >
@@ -441,7 +471,15 @@ export default function TeamProfilePage() {
 
   if (!teamName) {
     return (
-      <main className={uiFont.className} style={{ minHeight: "100vh", background: "transparent", padding: 28, color: "var(--k-fg)" }}>
+      <main
+        className={uiFont.className}
+        style={{
+          minHeight: "100vh",
+          background: pageBg,
+          padding: 28,
+          color: "rgba(255,255,255,0.92)",
+        }}
+      >
         {Header}
         <div style={{ marginTop: 18, fontSize: 18, fontWeight: 900 }}>Team param missing</div>
       </main>
@@ -450,13 +488,17 @@ export default function TeamProfilePage() {
 
   if (loading) {
     return (
-      <main className={uiFont.className} style={{ minHeight: "100vh", background: "transparent", padding: 28, color: "var(--k-fg)" }}>
+      <main
+        className={uiFont.className}
+        style={{
+          minHeight: "100vh",
+          background: pageBg,
+          padding: 28,
+          color: "rgba(255,255,255,0.92)",
+        }}
+      >
         {Header}
         <div style={{ marginTop: 18, fontSize: 18, fontWeight: 900 }}>Loading Team Profile…</div>
-        <div style={{ marginTop: 10, color: "var(--k-fg-dim)", fontSize: 13 }}>
-          fetching <code style={{ color: "var(--k-fg)" }}>{status.overviewUrl}</code>,{" "}
-          <code style={{ color: "var(--k-fg)" }}>{status.seriesUrl}</code>
-        </div>
       </main>
     );
   }
@@ -464,7 +506,6 @@ export default function TeamProfilePage() {
   const band = row ? ptiBand(row.PTI, league.q1, league.q2) : null;
   const bandCol = band ? ptiBandColor(band) : "rgba(255,255,255,0.55)";
 
-  // ✅ styled-jsx 없이 “모바일 줄바꿈”을 flexWrap으로 해결
   const headerTwoColStyle: React.CSSProperties = {
     display: "flex",
     gap: 14,
@@ -473,11 +514,19 @@ export default function TeamProfilePage() {
   };
 
   return (
-    <main className={uiFont.className} style={{ minHeight: "100vh", background: "transparent", padding: "34px 28px" }}>
+    <main
+      className={uiFont.className}
+      style={{
+        minHeight: "100vh",
+        background: pageBg,
+        padding: "34px 28px",
+        color: "rgba(255,255,255,0.92)",
+      }}
+    >
       <div style={{ maxWidth: 1260, margin: "0 auto" }}>
         {Header}
 
-        {/* ===== Club header (왼쪽 정보 + 오른쪽 슬로건 배너) ===== */}
+        {/* ===== Club header ===== */}
         <div
           style={{
             marginTop: 14,
@@ -490,10 +539,9 @@ export default function TeamProfilePage() {
             boxShadow: "0 18px 40px rgba(0,0,0,0.22)",
           }}
         >
-          {/* 얇은 포인트 라인: 슬로건 배너 bg색 */}
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: ss.bg, opacity: 0.95 }} />
 
-          {/* 로고 워터마크 */}
+          {/* ✅ 헤더 배경에도 로고 은은하게 */}
           <img
             src={teamLogoPath(teamLabel)}
             alt=""
@@ -505,12 +553,12 @@ export default function TeamProfilePage() {
               width: 210,
               height: 210,
               objectFit: "contain",
-              opacity: 0.06,
+              opacity: 0.07,
               filter: "grayscale(1)",
               pointerEvents: "none",
             }}
             onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
+              (e.currentTarget as HTMLImageElement).style.opacity = "0";
             }}
           />
 
@@ -536,12 +584,10 @@ export default function TeamProfilePage() {
               />
 
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.6, color: "var(--k-fg)" }}>
-                  {teamLabel}
-                </div>
+                <div style={{ fontSize: 30, fontWeight: 900, letterSpacing: -0.6, color: "rgba(255,255,255,0.94)" }}>{teamLabel}</div>
 
-                <div style={{ marginTop: 8, color: "var(--k-fg-dim)", fontSize: 13 }}>
-                  변동성(Team Profile) — 지표의 “흔들림”으로 전술 일관성/기복을 요약합니다.
+                <div style={{ marginTop: 8, color: "rgba(255,255,255,0.68)", fontSize: 13 }}>
+                  변동성(Team Profile) — 지표의 흔들림으로 전술 일관성/기복을 요약합니다.
                 </div>
 
                 <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -608,6 +654,29 @@ export default function TeamProfilePage() {
                 flex: "1 1 360px",
               }}
             >
+              {/* ✅✅✅ 로고 워터마크 (슬로건 뒤 은은하게) */}
+              <img
+                src={teamLogoPath(teamLabel)}
+                alt=""
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  inset: -10,
+                  width: "120%",
+                  height: "120%",
+                  objectFit: "contain",
+                  opacity: 0.12, // ← 은은함 핵심
+                  filter: "grayscale(1) contrast(1.1)",
+                  transform: "rotate(-10deg) scale(1.08)",
+                  pointerEvents: "none",
+                  userSelect: "none",
+                  mixBlendMode: "overlay",
+                }}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.opacity = "0";
+                }}
+              />
+
               {/* 워터마크 텍스트 */}
               {slogan ? (
                 <div
@@ -639,7 +708,7 @@ export default function TeamProfilePage() {
                     letterSpacing: 2.2,
                     textTransform: "uppercase",
                     color: ss.fg,
-                    textShadow: "0 3px 0 rgba(0,0,0,0.18), 0 18px 40px rgba(0,0,0,0.22)",
+                    textShadow: "0 4px 0 rgba(0,0,0,0.22), 0 18px 40px rgba(0,0,0,0.25)",
                     transform: "skewX(-12deg)",
                   }}
                 >
@@ -656,58 +725,23 @@ export default function TeamProfilePage() {
           </div>
         </div>
 
-        {/* DEBUG */}
-        {showDebug ? (
-          <div style={{ marginTop: 14, background: card as any, border: cardBorder as any, borderRadius: 18, padding: 14 }}>
-            <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 900 }}>DEBUG STATUS</div>
-            <div style={{ marginTop: 10, color: textDim, fontSize: 12, lineHeight: 1.7 }}>
-              <div>
-                overview: <code style={{ color: textStrong }}>{status.overviewUrl}</code> →{" "}
-                <b style={{ color: status.overviewOk ? "#22c55e" : "#ef4444" }}>
-                  {String(status.overviewOk)} ({status.overviewStatus})
-                </b>
-              </div>
-              <div>
-                timeseries: <code style={{ color: textStrong }}>{status.seriesUrl}</code> →{" "}
-                <b style={{ color: status.seriesOk ? "#22c55e" : "#ef4444" }}>
-                  {String(status.seriesOk)} ({status.seriesStatus})
-                </b>
-              </div>
-              <div>
-                clusters: <code style={{ color: textStrong }}>{status.clusterUrl}</code> →{" "}
-                <b style={{ color: status.clusterOk ? "#22c55e" : "#fbbf24" }}>
-                  {String(status.clusterOk)} ({status.clusterStatus})
-                </b>
-              </div>
-              {status.err ? <div style={{ marginTop: 8, color: "#fecaca" }}>err: {status.err}</div> : null}
-              <div style={{ marginTop: 8 }}>
-                overview sample: <code style={{ color: textStrong }}>{JSON.stringify(status.overviewSample)?.slice(0, 160)}…</code>
-              </div>
-              <div style={{ marginTop: 6 }}>
-                series sample: <code style={{ color: textStrong }}>{JSON.stringify(status.seriesSample)?.slice(0, 160)}…</code>
-              </div>
-              <div style={{ marginTop: 8 }}>
-                row found: <b style={{ color: row ? "#22c55e" : "#ef4444" }}>{row ? "YES" : "NO"}</b> / series points:{" "}
-                <b style={{ color: teamSeries.length ? "#22c55e" : "#fbbf24" }}>{teamSeries.length}</b>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {/* ===== Content ===== */}
         <div style={{ display: "grid", gridTemplateColumns: "420px minmax(0, 1fr)", gap: 14, marginTop: 14 }}>
           {/* SUMMARY */}
-          <div style={{ background: card as any, border: cardBorder as any, borderRadius: 18, padding: 14 }}>
+          <div style={{ background: card, border: cardBorder, borderRadius: 18, padding: 14 }}>
             <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 900 }}>SUMMARY</div>
 
             {!row ? (
-              <div style={{ marginTop: 10, color: textDim, fontSize: 13, lineHeight: 1.7 }}>
+              <div style={{ marginTop: 10, color: "rgba(255,255,255,0.70)", fontSize: 13, lineHeight: 1.7 }}>
                 overview에서 이 팀을 못 찾았어. (teamName 표기/공백 문제 가능)
+                <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>
+                  현재 URL 팀명: <b>{teamName}</b>
+                </div>
               </div>
             ) : (
               <>
-                <div style={{ marginTop: 10, color: textDim, fontSize: 12, lineHeight: 1.6 }}>
-                  <div style={{ color: "rgba(255,255,255,0.86)", fontWeight: 950 }}>
+                <div style={{ marginTop: 10, color: "rgba(255,255,255,0.72)", fontSize: 12, lineHeight: 1.6 }}>
+                  <div style={{ color: "rgba(255,255,255,0.90)", fontWeight: 950 }}>
                     “변동성”은 시즌 동안 지표가 얼마나 흔들렸는지(표준편차/범위/최근 변화)를 요약합니다.
                   </div>
                 </div>
@@ -721,91 +755,97 @@ export default function TeamProfilePage() {
                     border: "1px solid rgba(255,255,255,0.12)",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, color: textDim }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, color: "rgba(255,255,255,0.70)" }}>
                     <span style={{ fontWeight: 900 }}>Current (overview)</span>
                     <span style={{ color: "rgba(255,255,255,0.60)" }}>TSS/SGP/PTI</span>
                   </div>
                   <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
-                    <span style={{ color: "rgba(255,255,255,0.88)", fontWeight: 950 }}>TSS {fmt(row.TSS)}</span>
-                    <span style={{ color: "rgba(255,255,255,0.88)", fontWeight: 950 }}>SGP {fmt(row.SGP)}</span>
-                    <span style={{ color: "rgba(255,255,255,0.88)", fontWeight: 950 }}>PTI {fmt(row.PTI)}</span>
+                    <span style={{ color: "rgba(255,255,255,0.90)", fontWeight: 950 }}>TSS {fmt(row.TSS)}</span>
+                    <span style={{ color: "rgba(255,255,255,0.90)", fontWeight: 950 }}>SGP {fmt(row.SGP)}</span>
+                    <span style={{ color: "rgba(255,255,255,0.90)", fontWeight: 950 }}>PTI {fmt(row.PTI)}</span>
                   </div>
                 </div>
 
-                <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                  {[
+                {(() => {
+                  const blocks = [
                     { k: "TSS", st: stTSS },
                     { k: "SGP", st: stSGP },
                     { k: "PTI", st: stPTI },
-                  ].map(({ k, st }) => {
-                    const ok = st.n > 0 && Number.isFinite(st.std);
-                    const stdVal = ok ? st.std : NaN;
-                    const rangeVal = ok ? st.range : NaN;
-                    const d5 = ok ? st.last5Delta : NaN;
+                  ];
 
-                    const d5Color =
-                      !Number.isFinite(d5)
-                        ? "rgba(255,255,255,0.70)"
-                        : d5 > 0
-                          ? "rgba(34,197,94,0.95)"
-                          : d5 < 0
-                            ? "rgba(239,68,68,0.95)"
-                            : "rgba(255,255,255,0.70)";
-                    const d5Txt = !Number.isFinite(d5) ? "-" : `${d5 >= 0 ? "+" : ""}${fmt(d5)}`;
+                  return (
+                    <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                      {blocks.map(({ k, st }) => {
+                        const ok = st.n > 0 && Number.isFinite(st.std);
+                        const d5 = ok ? st.last5Delta : NaN;
 
-                    return (
-                      <div
-                        key={k}
-                        style={{
-                          padding: "10px 12px",
-                          borderRadius: 14,
-                          border: "1px solid rgba(255,255,255,0.12)",
-                          background: "rgba(255,255,255,0.05)",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                          <div style={{ fontWeight: 950, color: "rgba(255,255,255,0.88)" }}>{k} Variability</div>
-                          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{st.n ? `${st.n} pts` : "—"}</div>
-                        </div>
+                        const d5Color =
+                          !Number.isFinite(d5)
+                            ? "rgba(255,255,255,0.70)"
+                            : d5 > 0
+                              ? "rgba(34,197,94,0.95)"
+                              : d5 < 0
+                                ? "rgba(239,68,68,0.95)"
+                                : "rgba(255,255,255,0.70)";
 
-                        <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12, color: "rgba(255,255,255,0.72)" }}>
-                          <span>
-                            σ <span style={{ fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>{Number.isFinite(stdVal) ? fmt(stdVal) : "-"}</span>
-                          </span>
-                          <span>
-                            range <span style={{ fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>{Number.isFinite(rangeVal) ? fmt(rangeVal) : "-"}</span>
-                          </span>
-                          <span>
-                            last 5 Δ <span style={{ fontWeight: 950, color: d5Color }}>{d5Txt}</span>
-                          </span>
-                        </div>
+                        const d5Txt = !Number.isFinite(d5) ? "-" : `${d5 >= 0 ? "+" : ""}${fmt(d5)}`;
 
-                        <div
-                          style={{
-                            marginTop: 8,
-                            height: 8,
-                            borderRadius: 999,
-                            background: "rgba(255,255,255,0.10)",
-                            border: "1px solid rgba(255,255,255,0.10)",
-                            overflow: "hidden",
-                          }}
-                        >
+                        return (
                           <div
+                            key={k}
                             style={{
-                              width: `${clamp((Number.isFinite(stdVal) ? stdVal : 0) / 25, 0, 1) * 100}%`,
-                              height: "100%",
-                              borderRadius: 999,
-                              background: `linear-gradient(90deg, ${ss.bg}, rgba(255,255,255,0.35))`,
+                              padding: "10px 12px",
+                              borderRadius: 14,
+                              border: "1px solid rgba(255,255,255,0.12)",
+                              background: "rgba(255,255,255,0.05)",
                             }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                              <div style={{ fontWeight: 950, color: "rgba(255,255,255,0.88)" }}>{k} Variability</div>
+                              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.60)" }}>{st.n ? `${st.n} pts` : "—"}</div>
+                            </div>
+
+                            <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12, color: "rgba(255,255,255,0.72)" }}>
+                              <span>
+                                σ <span style={{ fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>{Number.isFinite(st.std) ? fmt(st.std) : "-"}</span>
+                              </span>
+                              <span>
+                                range{" "}
+                                <span style={{ fontWeight: 950, color: "rgba(255,255,255,0.92)" }}>{Number.isFinite(st.range) ? fmt(st.range) : "-"}</span>
+                              </span>
+                              <span>
+                                last 5 Δ <span style={{ fontWeight: 950, color: d5Color }}>{d5Txt}</span>
+                              </span>
+                            </div>
+
+                            <div
+                              style={{
+                                marginTop: 8,
+                                height: 8,
+                                borderRadius: 999,
+                                background: "rgba(255,255,255,0.10)",
+                                border: "1px solid rgba(255,255,255,0.10)",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${clamp((Number.isFinite(st.std) ? st.std : 0) / 25, 0, 1) * 100}%`,
+                                  height: "100%",
+                                  borderRadius: 999,
+                                  background: `linear-gradient(90deg, ${ss.bg}, rgba(255,255,255,0.35))`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 <div style={{ marginTop: 10, color: "rgba(255,255,255,0.58)", fontSize: 11, lineHeight: 1.6 }}>
-                  *σ(표준편차)는 “흔들림의 크기”, range는 “최고–최저 폭”, last 5 Δ는 최근 5경기 전 대비 변화입니다.
+                  *σ(표준편차)=흔들림 크기, range=최고–최저 폭, last 5 Δ=최근 5경기 전 대비 변화.
                 </div>
               </>
             )}
@@ -813,7 +853,7 @@ export default function TeamProfilePage() {
 
           {/* Right: Radar + Timeseries */}
           <div style={{ display: "grid", gridTemplateRows: "340px 420px", gap: 14 }}>
-            <div style={{ background: card as any, border: cardBorder as any, borderRadius: 18, padding: 14 }}>
+            <div style={{ background: card, border: cardBorder, borderRadius: 18, padding: 14 }}>
               <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 900 }}>RADAR</div>
               <div style={{ marginTop: 10, height: 280, background: "rgba(255,255,255,0.94)", borderRadius: 16, padding: 10 }}>
                 {!row ? (
@@ -833,7 +873,7 @@ export default function TeamProfilePage() {
               </div>
             </div>
 
-            <div style={{ background: card as any, border: cardBorder as any, borderRadius: 18, padding: 14 }}>
+            <div style={{ background: card, border: cardBorder, borderRadius: 18, padding: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: 900 }}>TIMESERIES</div>
                 <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11 }}>{teamSeries.length} points</div>
@@ -841,9 +881,7 @@ export default function TeamProfilePage() {
 
               <div style={{ marginTop: 10, height: 340, background: "rgba(255,255,255,0.94)", borderRadius: 16, padding: 10 }}>
                 {teamSeries.length === 0 ? (
-                  <div style={{ padding: 12, color: "#111827" }}>
-                    No timeseries points. (team_timeseries.json에서 팀/라운드 컬럼명이 코드와 다를 가능성 큼)
-                  </div>
+                  <div style={{ padding: 12, color: "#111827" }}>No timeseries points.</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={teamSeries}>
@@ -854,7 +892,6 @@ export default function TeamProfilePage() {
                       <Legend />
                       <Line type="monotone" dataKey="TSS" stroke="rgba(17,24,39,0.70)" dot={false} />
                       <Line type="monotone" dataKey="SGP" stroke="rgba(37,99,235,0.78)" dot={false} />
-                      {/* PTI는 팀 슬로건 배너 배경색으로 */}
                       <Line type="monotone" dataKey="PTI" stroke={ss.bg} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -881,7 +918,21 @@ export default function TeamProfilePage() {
           </div>
         </div>
 
-        {/* ✅ styled-jsx 없음: nested 에러 불가능 */}
+        {/* DEBUG */}
+        {showDebug ? (
+          <div style={{ marginTop: 14, background: "rgba(0,0,0,0.30)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 16, padding: 12 }}>
+            <div style={{ fontWeight: 900, color: "rgba(255,255,255,0.88)" }}>Debug panel</div>
+            <div style={{ marginTop: 8, fontSize: 12, color: "rgba(255,255,255,0.70)", lineHeight: 1.6 }}>
+              <div>overview: {String(status.overviewOk)} ({status.overviewStatus})</div>
+              <div>series: {String(status.seriesOk)} ({status.seriesStatus})</div>
+              <div>cluster: {String(status.clusterOk)} ({status.clusterStatus})</div>
+              <div style={{ marginTop: 8 }}>teamName(param): {teamName}</div>
+              <div>teamLabel(resolved): {teamLabel}</div>
+              <div>logoPath: {teamLogoPath(teamLabel)}</div>
+              {status.err ? <div style={{ marginTop: 8, color: "rgba(239,68,68,0.95)" }}>err: {status.err}</div> : null}
+            </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );
