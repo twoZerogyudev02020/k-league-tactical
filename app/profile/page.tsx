@@ -12,18 +12,39 @@ import {
   Legend,
 } from "recharts";
 
-type ClusterRow = {
+/**
+ * ✅ 4-Cluster (Cluster4) 공식화 버전
+ * - 데이터 소스: /data/team_TSS_SGP_PTI_labeled.csv
+ * - 팀 컬럼: Team (또는 team_name_ko)
+ * - 클러스터 컬럼: Cluster4
+ * - 라벨 컬럼: TacticalLabel4 / TacticalLabelExplain
+ * - 지표 컬럼: TSS, SGP, PTI (대개 0~100 스케일)
+ */
+
+type Row = {
   team_name_ko: string;
-  TSS_mean: number;
-  SGP_mean: number;
-  PTI_mean: number;
-  PTI_BAND?: string;
-  Cluster: number;
-  n_matches?: number;
+  Cluster4: number;
+  TacticalLabel4?: string;
+  TacticalLabelExplain?: string;
+
+  // 지표(가능하면 0-100)
+  TSS?: number;
+  SGP?: number;
+  PTI?: number;
+
+  // 혹시 다른 평균 컬럼이 있을 때도 대비
+  TSS_mean?: number;
+  SGP_mean?: number;
+  PTI_mean?: number;
 };
 
 function normalize(s: string) {
   return String(s ?? "").trim().replace(/^"+|"+$/g, "");
+}
+
+function toNum(v: any) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 function parseCSV(text: string) {
@@ -35,39 +56,43 @@ function parseCSV(text: string) {
   if (lines.length <= 1) return [];
 
   const header = lines[0].split(",").map((h) => normalize(h));
-  const idx = (name: string) => header.findIndex((h) => h === name);
+  const idx = (names: string[]) => header.findIndex((h) => names.includes(h));
 
-  const iTeam = idx("team_name_ko");
-  const iTSS = idx("TSS_mean");
-  const iSGP = idx("SGP_mean");
-  const iPTI = idx("PTI_mean");
-  const iCl = idx("Cluster");
-  const iBand = idx("PTI_BAND");
-  const iN = idx("n_matches");
+  const iTeam = idx(["team_name_ko", "Team", "team", "TEAM"]);
+  const iCl4 = idx(["Cluster4", "cluster4", "CLUSTER4"]);
+  const iLab = idx(["TacticalLabel4", "tacticallabel4"]);
+  const iExp = idx(["TacticalLabelExplain", "tacticallabelexplain"]);
 
-  if ([iTeam, iCl].some((x) => x < 0)) return [];
+  // 지표 후보들 (파일마다 다를 수 있어서 폭넓게)
+  const iTSS = idx(["TSS", "TSS_mean", "TSS_mean_0_100"]);
+  const iSGP = idx(["SGP", "SGP_mean", "SGP_mean_0_100"]);
+  const iPTI = idx(["PTI", "PTI_mean", "PTI_mean_0_100"]);
 
-  const out: ClusterRow[] = [];
+  if (iTeam < 0 || iCl4 < 0) return [];
+
+  const out: Row[] = [];
   for (let r = 1; r < lines.length; r++) {
     const cols = lines[r].split(",").map((c) => normalize(c));
     const team = cols[iTeam] ?? "";
     if (!team) continue;
 
-    const row: ClusterRow = {
+    const cl = toNum(cols[iCl4]);
+    if (!Number.isFinite(cl)) continue;
+
+    const row: Row = {
       team_name_ko: team,
-      TSS_mean: iTSS >= 0 ? Number(cols[iTSS]) : NaN,
-      SGP_mean: iSGP >= 0 ? Number(cols[iSGP]) : NaN,
-      PTI_mean: iPTI >= 0 ? Number(cols[iPTI]) : NaN,
-      Cluster: Number(cols[iCl]),
-      PTI_BAND: iBand >= 0 ? cols[iBand] : undefined,
-      n_matches: iN >= 0 ? Number(cols[iN]) : undefined,
+      Cluster4: cl,
+      TacticalLabel4: iLab >= 0 ? cols[iLab] : undefined,
+      TacticalLabelExplain: iExp >= 0 ? cols[iExp] : undefined,
+
+      TSS: iTSS >= 0 ? toNum(cols[iTSS]) : NaN,
+      SGP: iSGP >= 0 ? toNum(cols[iSGP]) : NaN,
+      PTI: iPTI >= 0 ? toNum(cols[iPTI]) : NaN,
     };
 
-    if (!Number.isFinite(row.Cluster)) continue;
-
-    // 평균 컬럼이 없을 수도 있으니, 클러스터만 있어도 row는 유지
     out.push(row);
   }
+
   return out;
 }
 
@@ -75,6 +100,7 @@ function fmt(n: number) {
   return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
+/** 4라벨 메타(논문/시각화 공통 세계관) */
 const CLUSTER_META: Record<number, { name: string; oneLine: string }> = {
   0: { name: "저강도 역습 전환형", oneLine: "빠른 전환·직선 공격으로 효율 추구" },
   1: { name: "고강도 빌드업 주도형", oneLine: "강한 압박·전술 개입으로 전개 통제" },
@@ -87,7 +113,7 @@ function clusterColor(c: number) {
   return palette[c % palette.length];
 }
 
-// (선택) 팀 로고: matchup에서 쓰던 매핑 그대로 사용 가능
+// (선택) 팀 로고 매핑
 function teamLogoSrc(name: string) {
   const m: Record<string, string> = {
     "강원FC": "/logos/강원fc.png",
@@ -107,17 +133,20 @@ function teamLogoSrc(name: string) {
 }
 
 export default function ProfilePage() {
-  const [rows, setRows] = useState<ClusterRow[] | null>(null);
+  const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       try {
-        const res = await fetch("/data/team_clusters.csv", { cache: "no-store" });
-        if (!res.ok) throw new Error(`team_clusters.csv fetch failed: ${res.status}`);
+        // ✅ 4클러스터 공식 소스
+        const res = await fetch("/data/team_TSS_SGP_PTI_labeled.csv", { cache: "no-store" });
+        if (!res.ok) throw new Error(`team_TSS_SGP_PTI_labeled.csv fetch failed: ${res.status}`);
         const text = await res.text();
         const parsed = parseCSV(text);
+
         if (!alive) return;
         setRows(parsed);
         setErr(null);
@@ -127,36 +156,59 @@ export default function ProfilePage() {
         setErr(e?.message ?? String(e));
       }
     })();
+
     return () => {
       alive = false;
     };
   }, []);
 
-  const { clusterAvg, teamsByCluster, hasAverages } = useMemo(() => {
+  const { clusterAvg, teamsByCluster, hasAverages, explainByCluster } = useMemo(() => {
     const data = rows ?? [];
-    const by = new Map<number, ClusterRow[]>();
+
+    const by = new Map<number, Row[]>();
     const teams = new Map<number, string[]>();
+    const explain = new Map<number, string>();
 
     for (const r of data) {
-      const arr = by.get(r.Cluster) ?? [];
-      arr.push(r);
-      by.set(r.Cluster, arr);
+      const cl = r.Cluster4;
 
-      const t = teams.get(r.Cluster) ?? [];
+      const arr = by.get(cl) ?? [];
+      arr.push(r);
+      by.set(cl, arr);
+
+      const t = teams.get(cl) ?? [];
       t.push(r.team_name_ko);
-      teams.set(r.Cluster, t);
+      teams.set(cl, t);
+
+      if (!explain.get(cl) && r.TacticalLabelExplain) {
+        explain.set(cl, r.TacticalLabelExplain);
+      }
+    }
+
+    // 중복 제거 + 정렬
+    for (const [k, v] of teams.entries()) {
+      teams.set(k, Array.from(new Set(v)).sort((a, b) => a.localeCompare(b)));
     }
 
     const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(xs.length, 1);
+
     const out = Array.from(by.entries())
       .map(([cl, arr]) => {
-        const tss = arr.map((x) => x.TSS_mean).filter(Number.isFinite);
-        const sgp = arr.map((x) => x.SGP_mean).filter(Number.isFinite);
-        const pti = arr.map((x) => x.PTI_mean).filter(Number.isFinite);
+        // ✅ 평균 계산은 TSS/SGP/PTI 우선 (없으면 *_mean 대체)
+        const tss = arr
+          .map((x) => (Number.isFinite(x.TSS as number) ? (x.TSS as number) : (x.TSS_mean as number)))
+          .filter(Number.isFinite);
+        const sgp = arr
+          .map((x) => (Number.isFinite(x.SGP as number) ? (x.SGP as number) : (x.SGP_mean as number)))
+          .filter(Number.isFinite);
+        const pti = arr
+          .map((x) => (Number.isFinite(x.PTI as number) ? (x.PTI as number) : (x.PTI_mean as number)))
+          .filter(Number.isFinite);
+
         return {
           cluster: `C${cl}`,
           cl,
-          name: CLUSTER_META[cl]?.name ?? "",
+          name: CLUSTER_META[cl]?.name ?? arr.find((x) => x.TacticalLabel4)?.TacticalLabel4 ?? "",
           TSS: tss.length ? mean(tss) : NaN,
           SGP: sgp.length ? mean(sgp) : NaN,
           PTI: pti.length ? mean(pti) : NaN,
@@ -167,12 +219,7 @@ export default function ProfilePage() {
 
     const has = out.some((c) => Number.isFinite(c.TSS) || Number.isFinite(c.SGP) || Number.isFinite(c.PTI));
 
-    // 팀 목록 정리(중복 제거)
-    for (const [k, v] of teams.entries()) {
-      teams.set(k, Array.from(new Set(v)).sort((a, b) => a.localeCompare(b)));
-    }
-
-    return { clusterAvg: out, teamsByCluster: teams, hasAverages: has };
+    return { clusterAvg: out, teamsByCluster: teams, hasAverages: has, explainByCluster: explain };
   }, [rows]);
 
   if (rows === null) {
@@ -187,16 +234,18 @@ export default function ProfilePage() {
     <main style={{ minHeight: "100vh", background: "transparent", color: "var(--k-fg)", padding: "24px 20px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 30, fontWeight: 950 }}>Cluster Profile</div>
+          <div style={{ fontSize: 30, fontWeight: 950 }}>Cluster Profile (4 Archetypes)</div>
           <div style={{ marginTop: 6, opacity: 0.75 }}>
-            “왜 이런 상성이 나오는가?”를 설명하는 해석용 페이지 (클러스터 성격 + 소속 팀).
+            “왜 이런 상성이 나오는가?”를 설명하는 해석용 페이지 (4개 아키타입 + 소속 팀 + 평균 프로필).
           </div>
         </div>
 
         {err && (
           <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: "rgba(255,255,255,0.08)" }}>
             <b>Load error:</b> {err}
-            <div style={{ marginTop: 6, opacity: 0.8 }}>✅ public/data/team_clusters.csv 경로 확인</div>
+            <div style={{ marginTop: 6, opacity: 0.8 }}>
+              ✅ public/data/team_TSS_SGP_PTI_labeled.csv 경로 확인
+            </div>
           </div>
         )}
 
@@ -223,12 +272,18 @@ export default function ProfilePage() {
                 {CLUSTER_META[c.cl]?.oneLine ?? ""}
               </div>
 
+              {explainByCluster.get(c.cl) && (
+                <div style={{ marginTop: 8, opacity: 0.75, fontSize: 12, lineHeight: 1.35 }}>
+                  {explainByCluster.get(c.cl)}
+                </div>
+              )}
+
               <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
                 TSS {fmt(c.TSS)} · SGP {fmt(c.SGP)} · PTI {fmt(c.PTI)} · Teams {c.nTeams}
               </div>
 
               <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {(teamsByCluster.get(c.cl) ?? []).slice(0, 10).map((t) => {
+                {(teamsByCluster.get(c.cl) ?? []).slice(0, 12).map((t) => {
                   const src = teamLogoSrc(t);
                   return (
                     <span

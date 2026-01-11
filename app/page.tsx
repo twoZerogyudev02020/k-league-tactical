@@ -25,7 +25,7 @@ type Row = {
 
 type ClusterRow = {
   team_name_ko: string;
-  Cluster: number;
+  Cluster4: number;
 };
 
 function mean(arr: number[]) {
@@ -88,7 +88,11 @@ function parseSimpleCSV(text: string) {
     const nh = normalizeTeamName(h);
     return nh === "team_name_ko" || nh === "team" || nh === "teamname" || nh === "teamlabel";
   });
-  const idxCl = header.findIndex((h) => normalizeTeamName(h) === "cluster");
+  const idxCl = header.findIndex((h) => {
+  const nh = normalizeTeamName(h);
+  return nh === "cluster4" || nh === "cluster";
+  });
+
   if (idxTeam < 0 || idxCl < 0) return [];
 
   const out: ClusterRow[] = [];
@@ -98,7 +102,7 @@ function parseSimpleCSV(text: string) {
     const cl = Number(cols[idxCl]);
     if (!team) continue;
     if (!Number.isFinite(cl)) continue;
-    out.push({ team_name_ko: team, Cluster: cl });
+    out.push({ team_name_ko: team, Cluster4: cl });
   }
   return out;
 }
@@ -280,8 +284,8 @@ export default function Home() {
     let alive = true;
     (async () => {
       try {
-        const res = await fetch("/data/team_clusters.csv", { cache: "no-store" });
-        if (!res.ok) throw new Error(`team_clusters.csv fetch failed: ${res.status}`);
+        const res = await fetch("/data/team_TSS_SGP_PTI_labeled.csv", { cache: "no-store" });
+        if (!res.ok) throw new Error(`team_TSS_SGP_PTI_labeled.csv fetch failed: ${res.status}`);
         const text = await res.text();
         const parsed = parseSimpleCSV(text);
 
@@ -340,14 +344,15 @@ export default function Home() {
   const clusterMap = useMemo(() => {
     const m = new Map<string, number>();
     (clusterRows ?? []).forEach((r) => {
-      m.set(normalizeTeamName(r.team_name_ko), r.Cluster);
+      m.set(normalizeTeamName(r.team_name_ko), r.Cluster4);
+
     });
     return m;
   }, [clusterRows]);
 
   const clusterIds = useMemo(() => {
     const s = new Set<number>();
-    (clusterRows ?? []).forEach((r) => s.add(r.Cluster));
+    (clusterRows ?? []).forEach((r) => s.add(r.Cluster4));
     return Array.from(s).sort((a, b) => a - b);
   }, [clusterRows]);
 

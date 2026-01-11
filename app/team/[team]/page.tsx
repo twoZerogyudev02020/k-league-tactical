@@ -27,7 +27,13 @@ const Legend = dynamic(() => import("recharts").then((m) => m.Legend), { ssr: fa
 
 type OverviewRow = { team: string; TSS: number; SGP: number; PTI: number };
 type AnyRow = Record<string, any>;
-type ClusterRow = { team_name_ko: string; Cluster: number };
+
+// ✅ 4-클러스터(Cluster4)용 Row
+type ClusterRow4 = {
+  team_name_ko: string;
+  Cluster4: number;
+  TacticalLabel4?: string;
+};
 
 function safeDecode(v: string | undefined) {
   if (!v) return "";
@@ -74,9 +80,6 @@ function sameTeam(a: string, b: string) {
 
 /**
  * ✅✅ 로고 파일명은 "네 public/logos 폴더 파일명" 그대로 사용
- * 스크린샷 기준:
- * fc서울, 강원fc, 광주fc, 김천상무, 대구fc, 대전하나시티즌, 수원fc,
- * 울산HD, 인천유나이티드, 전북현대, 제주sk, 포항스틸러스 (+ fc안양)
  */
 function teamLogoPath(team: string) {
   const t = normTeam(team);
@@ -85,7 +88,7 @@ function teamLogoPath(team: string) {
     { keys: ["fc서울", "서울", "seoul", "fcseoul"], file: "fc서울" },
     { keys: ["강원fc", "강원", "gangwon"], file: "강원fc" },
     { keys: ["광주fc", "광주", "gwangju"], file: "광주fc" },
-    { keys: ["김천상무", "김천", "gimcheon", "김천상무프로축구단", "김천상무프로축구단"], file: "김천상무" },
+    { keys: ["김천상무", "김천", "gimcheon", "김천상무프로축구단"], file: "김천상무" },
     { keys: ["대구fc", "대구", "daegu"], file: "대구fc" },
     { keys: ["대전하나시티즌", "대전", "daejeon"], file: "대전하나시티즌" },
     { keys: ["수원fc", "수원", "suwon"], file: "수원fc" },
@@ -94,26 +97,17 @@ function teamLogoPath(team: string) {
     { keys: ["전북현대", "전북", "jeonbuk", "전북현대모터스"], file: "전북현대" },
     { keys: ["제주sk", "제주", "jeju", "제주skfc"], file: "제주sk" },
     { keys: ["포항스틸러스", "포항", "pohang"], file: "포항스틸러스" },
-
-    // 원하면 삭제
     { keys: ["fc안양", "안양", "anyang", "fcanyang"], file: "fc안양" },
   ];
 
   // 1) 정확 일치
   for (const item of map) {
-    if (item.keys.some((k) => normTeam(k) === t)) {
-      return `/logos/${encodeURIComponent(item.file)}.png`;
-    }
+    if (item.keys.some((k) => normTeam(k) === t)) return `/logos/${encodeURIComponent(item.file)}.png`;
   }
-
-  // 2) 부분 포함 (긴 정식명도 잡기)
+  // 2) 부분 포함
   for (const item of map) {
-    if (item.keys.some((k) => t.includes(normTeam(k)))) {
-      return `/logos/${encodeURIComponent(item.file)}.png`;
-    }
+    if (item.keys.some((k) => t.includes(normTeam(k)))) return `/logos/${encodeURIComponent(item.file)}.png`;
   }
-
-  // 3) default (깨진 이미지 방지)
   return `/logos/default.png`;
 }
 
@@ -181,7 +175,13 @@ function ptiBandColor(b: "LOW" | "MID" | "HIGH") {
   return "#ef4444";
 }
 
-function parseSimpleCSV(text: string) {
+/**
+ * ✅✅✅ Cluster4 파서 (team_TSS_SGP_PTI_labeled.csv)
+ * - team: team_name_ko / Team / team
+ * - cluster: Cluster4
+ * - label: TacticalLabel4 (옵션)
+ */
+function parseCluster4CSV(text: string) {
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -190,18 +190,26 @@ function parseSimpleCSV(text: string) {
   if (lines.length <= 1) return [];
 
   const header = lines[0].split(",").map((h) => h.trim());
-  const idxTeam = header.findIndex((h) => normTeam(h) === "team_name_ko" || normTeam(h) === "team");
-  const idxCl = header.findIndex((h) => normTeam(h) === "cluster");
-  if (idxTeam < 0 || idxCl < 0) return [];
+  const hNorm = header.map((h) => normTeam(h));
 
-  const out: ClusterRow[] = [];
+  const idxTeam = hNorm.findIndex((h) => h === "team_name_ko" || h === "team" || h === "teamlabel");
+  const idxCl4 = hNorm.findIndex((h) => h === "cluster4" || h === "cluster_4" || h === "cluster");
+  const idxLab4 = hNorm.findIndex((h) => h === "tacticallabel4" || h === "tacticallabel");
+
+  if (idxTeam < 0 || idxCl4 < 0) return [];
+
+  const out: ClusterRow4[] = [];
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(",").map((c) => c.trim());
+    const cols = lines[i].split(",").map((c) => c.trim().replace(/^"+|"+$/g, ""));
     const team = cols[idxTeam] ?? "";
-    const cl = Number(cols[idxCl]);
+    const cl = Number(cols[idxCl4]);
     if (!team) continue;
     if (!Number.isFinite(cl)) continue;
-    out.push({ team_name_ko: team, Cluster: cl });
+    out.push({
+      team_name_ko: team,
+      Cluster4: cl,
+      TacticalLabel4: idxLab4 >= 0 ? cols[idxLab4] : undefined,
+    });
   }
   return out;
 }
@@ -224,7 +232,9 @@ export default function TeamProfilePage() {
 
   const [overview, setOverview] = useState<OverviewRow[] | null>(null);
   const [seriesRaw, setSeriesRaw] = useState<AnyRow[] | null>(null);
-  const [clusterRows, setClusterRows] = useState<ClusterRow[] | null>(null);
+
+  // ✅ Cluster4 rows
+  const [clusterRows, setClusterRows] = useState<ClusterRow4[] | null>(null);
 
   const [showDebug, setShowDebug] = useState(false);
 
@@ -241,10 +251,12 @@ export default function TeamProfilePage() {
     err?: string;
     overviewSample?: any;
     seriesSample?: any;
+    clusterSample?: any;
   }>({
     overviewUrl: "/data/overview.json",
     seriesUrl: "/data/team_timeseries.json",
-    clusterUrl: "/data/team_clusters.csv",
+    // ✅✅✅ 4클러스터 공식 소스
+    clusterUrl: "/data/team_TSS_SGP_PTI_labeled.csv",
   });
 
   useEffect(() => {
@@ -253,7 +265,8 @@ export default function TeamProfilePage() {
       try {
         const overviewUrl = "/data/overview.json";
         const seriesUrl = "/data/team_timeseries.json";
-        const clusterUrl = "/data/team_clusters.csv";
+        // ✅✅✅ 4클러스터 공식 소스
+        const clusterUrl = "/data/team_TSS_SGP_PTI_labeled.csv";
 
         const [oRes, sRes, cRes] = await Promise.all([
           fetch(overviewUrl, { cache: "no-store" }),
@@ -279,6 +292,8 @@ export default function TeamProfilePage() {
 
         if (!alive) return;
 
+        const parsedCluster = cText ? parseCluster4CSV(cText) : [];
+
         setStatus((prev) => ({
           ...prev,
           overviewUrl,
@@ -292,11 +307,12 @@ export default function TeamProfilePage() {
           clusterStatus,
           overviewSample: Array.isArray(oJson) ? oJson?.[0] : oJson,
           seriesSample: Array.isArray(sJson) ? sJson?.[0] : sJson,
+          clusterSample: parsedCluster?.[0],
         }));
 
         setOverview(Array.isArray(oJson) ? (oJson as OverviewRow[]) : []);
         setSeriesRaw(Array.isArray(sJson) ? (sJson as AnyRow[]) : []);
-        setClusterRows(cText ? parseSimpleCSV(cText) : []);
+        setClusterRows(parsedCluster);
       } catch (e: any) {
         if (!alive) return;
         setStatus((prev) => ({ ...prev, err: e?.message ?? String(e) }));
@@ -371,18 +387,21 @@ export default function TeamProfilePage() {
     ];
   }, [row, league]);
 
-  const clusterId = useMemo(() => {
-    if (!clusterRows || !teamName) return null;
+  // ✅ Cluster4 id + label
+  const clusterInfo = useMemo(() => {
+    if (!clusterRows || !teamName) return { id: null as number | null, label: "" };
     const hit = clusterRows.find((r) => sameTeam(r.team_name_ko, teamName));
-    return hit ? hit.Cluster : null;
+    return hit ? { id: hit.Cluster4, label: hit.TacticalLabel4 ?? "" } : { id: null, label: "" };
   }, [clusterRows, teamName]);
 
-  function metricStats(key: "TSS" | "SGP" | "PTI") {
-    const vals = teamSeries.map((d) => Number(d[key])).filter((x) => Number.isFinite(x));
-    if (!vals.length) {
-      return { n: 0, std: NaN, range: NaN, last5Delta: NaN };
-    }
-    const s = std(vals);
+  function metricStats(series: Array<{ [k: string]: any }>, key: "TSS" | "SGP" | "PTI") {
+    const vals = series.map((d) => Number(d[key])).filter((x) => Number.isFinite(x));
+    if (!vals.length) return { n: 0, std: NaN, range: NaN, last5Delta: NaN };
+
+    const m = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const v = vals.reduce((a, x) => a + (x - m) ** 2, 0) / vals.length;
+    const s = Math.sqrt(v);
+
     const mi = Math.min(...vals);
     const ma = Math.max(...vals);
     const range = ma - mi;
@@ -394,9 +413,11 @@ export default function TeamProfilePage() {
     return { n: vals.length, std: s, range, last5Delta };
   }
 
-  const stTSS = useMemo(() => metricStats("TSS"), [teamSeries]);
-  const stSGP = useMemo(() => metricStats("SGP"), [teamSeries]);
-  const stPTI = useMemo(() => metricStats("PTI"), [teamSeries]);
+
+  const stTSS = useMemo(() => metricStats(teamSeries, "TSS"), [teamSeries]);
+  const stSGP = useMemo(() => metricStats(teamSeries, "SGP"), [teamSeries]);
+  const stPTI = useMemo(() => metricStats(teamSeries, "PTI"), [teamSeries]);
+
 
   const mostVolatile = useMemo(() => {
     const items = [
@@ -471,15 +492,7 @@ export default function TeamProfilePage() {
 
   if (!teamName) {
     return (
-      <main
-        className={uiFont.className}
-        style={{
-          minHeight: "100vh",
-          background: pageBg,
-          padding: 28,
-          color: "rgba(255,255,255,0.92)",
-        }}
-      >
+      <main className={uiFont.className} style={{ minHeight: "100vh", background: pageBg, padding: 28, color: "rgba(255,255,255,0.92)" }}>
         {Header}
         <div style={{ marginTop: 18, fontSize: 18, fontWeight: 900 }}>Team param missing</div>
       </main>
@@ -488,15 +501,7 @@ export default function TeamProfilePage() {
 
   if (loading) {
     return (
-      <main
-        className={uiFont.className}
-        style={{
-          minHeight: "100vh",
-          background: pageBg,
-          padding: 28,
-          color: "rgba(255,255,255,0.92)",
-        }}
-      >
+      <main className={uiFont.className} style={{ minHeight: "100vh", background: pageBg, padding: 28, color: "rgba(255,255,255,0.92)" }}>
         {Header}
         <div style={{ marginTop: 18, fontSize: 18, fontWeight: 900 }}>Loading Team Profile…</div>
       </main>
@@ -514,15 +519,7 @@ export default function TeamProfilePage() {
   };
 
   return (
-    <main
-      className={uiFont.className}
-      style={{
-        minHeight: "100vh",
-        background: pageBg,
-        padding: "34px 28px",
-        color: "rgba(255,255,255,0.92)",
-      }}
-    >
+    <main className={uiFont.className} style={{ minHeight: "100vh", background: pageBg, padding: "34px 28px", color: "rgba(255,255,255,0.92)" }}>
       <div style={{ maxWidth: 1260, margin: "0 auto" }}>
         {Header}
 
@@ -602,7 +599,10 @@ export default function TeamProfilePage() {
                       fontWeight: 800,
                     }}
                   >
-                    Cluster: <span style={{ color: "rgba(255,255,255,0.92)" }}>{clusterId === null ? "—" : `C${clusterId}`}</span>
+                    Cluster:{" "}
+                    <span style={{ color: "rgba(255,255,255,0.92)" }}>
+                      {clusterInfo.id === null ? "—" : `C${clusterInfo.id}${clusterInfo.label ? ` · ${clusterInfo.label}` : ""}`}
+                    </span>
                   </span>
 
                   <span
@@ -654,7 +654,7 @@ export default function TeamProfilePage() {
                 flex: "1 1 360px",
               }}
             >
-              {/* ✅✅✅ 로고 워터마크 (슬로건 뒤 은은하게) */}
+              {/* 로고 워터마크 */}
               <img
                 src={teamLogoPath(teamLabel)}
                 alt=""
@@ -665,7 +665,7 @@ export default function TeamProfilePage() {
                   width: "120%",
                   height: "120%",
                   objectFit: "contain",
-                  opacity: 0.12, // ← 은은함 핵심
+                  opacity: 0.12,
                   filter: "grayscale(1) contrast(1.1)",
                   transform: "rotate(-10deg) scale(1.08)",
                   pointerEvents: "none",
@@ -768,9 +768,9 @@ export default function TeamProfilePage() {
 
                 {(() => {
                   const blocks = [
-                    { k: "TSS", st: stTSS },
-                    { k: "SGP", st: stSGP },
-                    { k: "PTI", st: stPTI },
+                    { k: "TSS", st: metricStats(teamSeries, "TSS") },
+                    { k: "SGP", st: metricStats(teamSeries, "SGP") },
+                    { k: "PTI", st: metricStats(teamSeries, "PTI") },
                   ];
 
                   return (
@@ -929,6 +929,8 @@ export default function TeamProfilePage() {
               <div style={{ marginTop: 8 }}>teamName(param): {teamName}</div>
               <div>teamLabel(resolved): {teamLabel}</div>
               <div>logoPath: {teamLogoPath(teamLabel)}</div>
+              <div style={{ marginTop: 8 }}>clusterUrl: {status.clusterUrl}</div>
+              {status.clusterSample ? <div>clusterSample: {JSON.stringify(status.clusterSample)}</div> : null}
               {status.err ? <div style={{ marginTop: 8, color: "rgba(239,68,68,0.95)" }}>err: {status.err}</div> : null}
             </div>
           </div>
@@ -936,4 +938,24 @@ export default function TeamProfilePage() {
       </div>
     </main>
   );
+}
+
+// ✅ 파일 맨 아래에 helper 분리(원본 구조 유지)
+function metricStats(series: Array<{ [k: string]: any }>, key: "TSS" | "SGP" | "PTI") {
+  const vals = series.map((d) => Number(d[key])).filter((x) => Number.isFinite(x));
+  if (!vals.length) return { n: 0, std: NaN, range: NaN, last5Delta: NaN };
+
+  const m = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const v = vals.reduce((a, x) => a + (x - m) ** 2, 0) / vals.length;
+  const s = Math.sqrt(v);
+
+  const mi = Math.min(...vals);
+  const ma = Math.max(...vals);
+  const range = ma - mi;
+
+  const last = vals[vals.length - 1];
+  const prev = vals.length >= 6 ? vals[vals.length - 6] : vals[0];
+  const last5Delta = last - prev;
+
+  return { n: vals.length, std: s, range, last5Delta };
 }
